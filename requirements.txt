@@ -1,0 +1,5 @@
+board
+busio
+adafruit_ht16k33.segments
+digitalio
+adafruit_mcp230xx.mcp23017
