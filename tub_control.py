@@ -522,7 +522,7 @@ class ComponentSystem:
                 self.temp_water, self.temp_heater1, self.temp_heater2,
                 self.temp_cabinet, self.temp_control_box, self.temp_ambient
             ]
-            print(f'reading sensor {temp_sensors[self.temp_sensor_round_robin].name}')
+            #print(f'reading sensor {temp_sensors[self.temp_sensor_round_robin].name}')
             temp_sensors[self.temp_sensor_round_robin].read_temp()
             self.temp_sensor_round_robin += 1
             if self.temp_sensor_round_robin == len(temp_sensors):
