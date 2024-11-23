@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hot Tub Control Panel</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+        }
+
+        h1 {
+            margin-top: 20px;
+        }
+
+        .container {
+            display: flex;
+            flex-wrap: wrap;
+            width: 90%;
+            max-width: 1200px;
+            margin: 20px;
+        }
+
+        .column {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            gap: 20px;
+            min-width: 300px;
+            padding: 10px;
+        }
+
+        .section {
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            border: 1px solid #ccc;
+            border-radius: 10px;
+            background: #f9f9f9;
+        }
+
+        .section h2 {
+            margin-bottom: 10px;
+        }
+
+        .section .content {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        button {
+            display: block;
+            padding: 10px;
+            width: 150px;
+        }
+
+        .off-state {
+            background-color: grey;
+            color: white;
+        }
+
+        .pump-low {
+            background-color: blue;
+            color: white;
+        }
+
+        .pump-high {
+            background-color: yellow;
+            color: black;
+        }
+
+        .light-on {
+            background-color: yellow;
+            color: black;
+        }
+
+        .device-on {
+            background-color: green;
+            color: white;
+        }
+
+        .temperature {
+            font-size: 1.2em;
+            margin: 10px 0;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid #ccc;
+        }
+
+        th {
+            background-color: #f1f1f1;
+        }
+    </style>
+</head>
+<body>
+    <h1>Hot Tub Control Panel</h1>
+    <div class="container">
+        <div class="column">
+            <div class="section pumps-section">
+                <h2>Pumps</h2>
+                <button id="pump1Button" class="off-state" onclick="advancePump('pump1')">Advance Pump 1</button>
+                <div id="pump1Status" class="status">Pump 1: Loading...</div>
+                <button id="pump2Button" class="off-state" onclick="advancePump('pump2')">Advance Pump 2</button>
+                <div id="pump2Status" class="status">Pump 2: Loading...</div>
+            </div>
+            <div class="section light-section">
+                <h2>Light</h2>
+                <button id="lightButton" class="off-state" onclick="toggleDevice('light')">Toggle Light</button>
+                <div id="lightStatus" class="status">Light: Loading...</div>
+            </div>
+        </div>
+        <div class="column">
+            <div class="section temperature-section">
+                <h2>Temperature</h2>
+                <button onclick="changeTemperature('up')">Increase Temperature</button>
+                <button onclick="changeTemperature('down')">Decrease Temperature</button>
+                <div id="setTemp" class="temperature">Set Temperature: Loading...</div>
+                <div id="waterTemp" class="temperature">Water Temperature: Loading...</div>
+            </div>
+        </div>
+    </div>
+    <script>
+        const apiBaseUrl = 'http://url.or.ip:8000'; # set your hot tub url or IP here
+        const wsBaseUrl = 'ws://url.or.ip:8000/state';
+
+        let websocket = new WebSocket(wsBaseUrl);
+        let setTemperature = 'Loading...';
+
+        websocket.onmessage = function (event) {
+            const state = JSON.parse(event.data);
+            updateButtonStates(state);
+        };
+
+        websocket.onclose = function () {
+            console.log('WebSocket connection closed. Attempting to reconnect...');
+            setTimeout(function () {
+                websocket = new WebSocket(wsBaseUrl);
+            }, 5000); // Try to reconnect every 5 seconds
+        };
+
+        function updateButtonStates(state) {
+            updatePumpButton('pump1', state.main_pumps.pump1.state);
+            updatePumpButton('pump2', state.main_pumps.pump2.state);
+            updateLightButton(state.devices.light.state);
+            setTemperature = state.set_temperature;
+            document.getElementById('setTemp').textContent = `Set Temperature: ${state.set_temperature}°F`;
+            document.getElementById('waterTemp').textContent = `Water Temperature: ${state.temperatures.water}°F`;
+        }
+
+        function updatePumpButton(pumpId, pumpState) {
+            const pumpButton = document.getElementById(`${pumpId}Button`);
+            const pumpStatus = document.getElementById(`${pumpId}Status`);
+            if (!pumpButton || !pumpStatus) return;
+            pumpButton.className = '';
+            pumpStatus.textContent = `${pumpId.charAt(0).toUpperCase() + pumpId.slice(1)}: ${pumpState}`;
+            if (pumpState === 'off') {
+                pumpButton.classList.add('off-state');
+            } else if (pumpState === 'low') {
+                pumpButton.classList.add('pump-low');
+            } else if (pumpState === 'high') {
+                pumpButton.classList.add('pump-high');
+            }
+        }
+
+        function updateLightButton(lightState) {
+            const lightButton = document.getElementById('lightButton');
+            const lightStatus = document.getElementById('lightStatus');
+            if (!lightButton || !lightStatus) return;
+            lightButton.className = '';
+            lightStatus.textContent = `Light: ${lightState ? 'On' : 'Off'}`;
+            if (lightState) {
+                lightButton.classList.add('light-on');
+            } else {
+                lightButton.classList.add('off-state');
+            }
+        }
+
+        async function advancePump(pumpId) {
+            try {
+                const response = await fetch(`${apiBaseUrl}/toggle/${pumpId}`, { method: 'POST' });
+                if (!response.ok) {
+                    console.error(`Failed to advance pump: ${pumpId}, Status: ${response.status}`);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+
+        async function toggleDevice(device) {
+            try {
+                const response = await fetch(`${apiBaseUrl}/toggle/${device}`, { method: 'POST' });
+                if (!response.ok) {
+                    console.error(`Failed to toggle device: ${device}, Status: ${response.status}`);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+
+        async function changeTemperature(direction) {
+            try {
+                let newTemperature = setTemperature;
+                if (direction === 'up') {
+                    newTemperature += 1;
+                } else if (direction === 'down') {
+                    newTemperature -= 1;
+                }
+                const response = await fetch(`${apiBaseUrl}/set_temperature`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ temperature: newTemperature })
+                });
+                if (response.ok) {
+                    setTemperature = newTemperature;
+                    document.getElementById('setTemp').textContent = `Set Temperature: ${newTemperature}°F`;
+                } else {
+                    console.error(`Failed to set temperature, Status: ${response.status}`);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+    </script>
+</body>
+</html>

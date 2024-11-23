@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hot Tub Admin Panel</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+        }
+
+        h1 {
+            margin-top: 20px;
+        }
+
+        .container {
+            display: flex;
+            flex-wrap: wrap;
+            width: 90%;
+            max-width: 1200px;
+            margin: 20px;
+        }
+
+        .column {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            gap: 20px;
+            min-width: 300px;
+            padding: 10px;
+        }
+
+        .section {
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            border: 1px solid #ccc;
+            border-radius: 10px;
+            background: #f9f9f9;
+        }
+
+        .section h2 {
+            margin-bottom: 10px;
+        }
+
+        .section .content {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        button {
+            padding: 10px;
+            width: 150px;
+        }
+
+        .off-state {
+            background-color: grey;
+            color: white;
+        }
+
+        .pump-low {
+            background-color: blue;
+            color: white;
+        }
+
+        .pump-high {
+            background-color: yellow;
+            color: black;
+        }
+
+        .device-off {
+            background-color: grey;
+            color: white;
+        }
+
+        .device-on {
+            background-color: green;
+            color: white;
+        }
+
+        .temperature {
+            font-size: 1.2em;
+            margin: 10px 0;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th,
+        td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid #ccc;
+        }
+
+        th {
+            background-color: #f1f1f1;
+        }
+
+        .status-table {
+            width: 100%;
+        }
+
+        .status-table th,
+        .status-table td {
+            border: none;
+        }
+
+        .status-table th {
+            text-align: right;
+        }
+
+    </style>
+</head>
+
+<body>
+    <h1>Hot Tub Admin Panel</h1>
+    <div class="container">
+        <div class="column">
+            <div class="section devices-section">
+                <h2>Devices</h2>
+                <div class="content">
+                    <table id="devices">
+                        <thead>
+                            <tr>
+                                <th>Device</th>
+                                <th>Action</th>
+                                <th>Last Change Time (s)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Loading...</td>
+                                <td>Loading...</td>
+                                <td>Loading...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="section main-pumps-section">
+                <h2>Main Pumps</h2>
+                <div class="content">
+                    <table id="mainPumps">
+                        <thead>
+                            <tr>
+                                <th>Pump</th>
+                                <th>Action</th>
+                                <th>Last Change Time (s)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Loading...</td>
+                                <td>Loading...</td>
+                                <td>Loading...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="section mode-section">
+                <h2>Mode</h2>
+                <div class="content">
+                    <div id="mode">Mode: Loading...</div>
+                    <button onclick="setMode('automatic')">Set Automatic</button>
+                    <button onclick="setMode('manual')">Set Manual</button>
+                </div>
+            </div>
+        </div>
+        <div class="column">
+            <div class="section status-section">
+                <h2>Status</h2>
+                <div class="content">
+                    <table class="status-table" id="status">
+                        <tr>
+                            <th>Flow Switch:</th>
+                            <td id="flowSwitch">Loading...</td>
+                        </tr>
+                        <tr>
+                            <th>Start Time:</th>
+                            <td id="startTime">Loading...</td>
+                        </tr>
+                        <tr>
+                            <th>Current Time:</th>
+                            <td id="currentTime">Loading...</td>
+                        </tr>
+                        <tr>
+                            <th>Loop Time:</th>
+                            <td id="loopTime">Loading...</td>
+                        </tr>
+                        <tr>
+                            <th>Sensor Read:</th>
+                            <td id="sensorRead">Loading...</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+            <div class="section temperatures-section">
+                <h2>Current Temperatures</h2>
+                <table id="temperatures">
+                    <thead>
+                        <tr>
+                            <th>Sensor</th>
+                            <th>Temperature</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Loading...</td>
+                            <td>Loading...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="section set-temperature-section">
+                <h2>Set Temperature</h2>
+                <div class="content">
+                    <div id="setTemp" class="temperature">Set Temperature: Loading...</div>
+                    <button onclick="changeTemperature('up')">Increase Temperature</button>
+                    <button onclick="changeTemperature('down')">Decrease Temperature</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        const apiBaseUrl = 'http://url.or.ip:8000'; # set your hot tub url or IP here
+        const wsBaseUrl = 'ws://url.or.ip:8000/state';
+
+        let websocket = null;
+        let setTemperature = 'Loading...';
+
+        function connectWebSocket() {
+            websocket = new WebSocket(wsBaseUrl);
+
+            websocket.onopen = function () {
+                console.log('WebSocket connection opened');
+            };
+
+            websocket.onmessage = function (event) {
+                const state = JSON.parse(event.data);
+                requestAnimationFrame(() => updateStatus(state));
+            };
+
+            websocket.onclose = function () {
+                console.log('WebSocket connection closed. Attempting to reconnect...');
+                setTimeout(function () {
+                    connectWebSocket();
+                }, 5000); // Try to reconnect every 5 seconds
+            };
+
+            websocket.onerror = function (error) {
+                console.error('WebSocket error:', error);
+                websocket.close();
+            };
+        }
+
+        connectWebSocket();
+
+        function updateStatus(state) {
+            setTemperature = state.set_temperature;
+            document.getElementById('setTemp').textContent = `Set Temperature: ${state.set_temperature}°F`;
+
+            const temperatureContainer = document.querySelector('#temperatures tbody');
+            temperatureContainer.innerHTML = '';
+            for (const [sensor, value] of Object.entries(state.temperatures)) {
+                const row = document.createElement('tr');
+                const cellSensor = document.createElement('td');
+                const cellTemp = document.createElement('td');
+
+                cellSensor.textContent = `${sensor.charAt(0).toUpperCase() + sensor.slice(1)}`;
+                cellTemp.textContent = `${value.toFixed(2)}°F`;
+
+                row.appendChild(cellSensor);
+                row.appendChild(cellTemp);
+                temperatureContainer.appendChild(row);
+            }
+
+            document.getElementById('mode').textContent = `Mode: ${state.mode.charAt(0).toUpperCase() + state.mode.slice(1)}`;
+
+            const deviceContainer = document.querySelector('#devices tbody');
+            deviceContainer.innerHTML = '';
+            for (const [device, info] of Object.entries(state.devices)) {
+                const row = document.createElement('tr');
+
+                const cellDevice = document.createElement('td');
+                const cellButton = document.createElement('td');
+                const cellLastChange = document.createElement('td');
+
+                const deviceName = `${device.charAt(0).toUpperCase() + device.slice(1)}`;
+                cellDevice.textContent = deviceName;
+
+                const deviceButton = document.createElement('button');
+                deviceButton.textContent = `Toggle ${deviceName}`;
+                deviceButton.classList.add(info.state ? 'device-on' : 'device-off');
+                deviceButton.onclick = () => toggleDevice(device);
+                cellButton.appendChild(deviceButton);
+
+                cellLastChange.textContent = `${info.last_change_time}`;
+
+                row.appendChild(cellDevice);
+                row.appendChild(cellButton);
+                row.appendChild(cellLastChange);
+                deviceContainer.appendChild(row);
+            }
+
+            const mainPumpsContainer = document.querySelector('#mainPumps tbody');
+            mainPumpsContainer.innerHTML = '';
+            for (const [pump, info] of Object.entries(state.main_pumps)) {
+                const row = document.createElement('tr');
+
+                const cellPump = document.createElement('td');
+                const cellButton = document.createElement('td');
+                const cellLastChange = document.createElement('td');
+
+                const pumpName = `${pump.charAt(0).toUpperCase() + pump.slice(1)}`;
+                cellPump.textContent = pumpName;
+
+                const pumpButton = document.createElement('button');
+                pumpButton.textContent = `Advance ${pumpName}`;
+                if (info.state === 'off') {
+                    pumpButton.classList.add('off-state');
+                } else if (info.state === 'low') {
+                    pumpButton.classList.add('pump-low');
+                } else if (info.state === 'high') {
+                    pumpButton.classList.add('pump-high');
+                }
+                pumpButton.onclick = debounce(() => advancePump(pump), 300);
+                cellButton.appendChild(pumpButton);
+
+                cellLastChange.textContent = `${info.last_change_time}`;
+
+                row.appendChild(cellPump);
+                row.appendChild(cellButton);
+                row.appendChild(cellLastChange);
+                mainPumpsContainer.appendChild(row);
+            }
+
+            document.getElementById('flowSwitch').textContent = state.flow_switch ? 'Active' : 'Inactive';
+            document.getElementById('startTime').textContent = new Date(state.start_time * 1000).toLocaleString();
+            document.getElementById('currentTime').textContent = new Date(state.current_time * 1000).toLocaleString();
+            document.getElementById('loopTime').textContent = state.loop_time;
+            document.getElementById('sensorRead').textContent = state.sensor_read;
+        }
+
+        function debounce(func, wait) {
+            let timeout;
+            return function (...args) {
+                clearTimeout(timeout);
+                timeout = setTimeout(() => func.apply(this, args), wait);
+            };
+        }
+
+        async function changeTemperature(direction) {
+            try {
+                let newTemperature = setTemperature;
+                if (direction === 'up') {
+                    newTemperature += 1;
+                } else if (direction === 'down') {
+                    newTemperature -= 1;
+                }
+                const response = await fetch(`${apiBaseUrl}/set_temperature`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ temperature: newTemperature })
+                });
+                if (response.ok) {
+                    setTemperature = newTemperature;
+                    document.getElementById('setTemp').textContent = `Set Temperature: ${newTemperature}°F`;
+                } else {
+                    console.error(`Failed to set temperature, Status: ${response.status}`);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+
+        async function setMode(mode) {
+            try {
+                const response = await fetch(`${apiBaseUrl}/set_mode`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ mode: mode })
+                });
+                if (response.ok) {
+                    document.getElementById('mode').textContent = `Mode: ${mode.charAt(0).toUpperCase() + mode.slice(1)}`;
+                } else {
+                    console.error(`Failed to set mode, Status: ${response.status}`);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+
+        async function toggleDevice(device) {
+            try {
+                const response = await fetch(`${apiBaseUrl}/toggle/${device}`, { method: 'POST' });
+                if (!response.ok) {
+                    console.error(`Failed to toggle device: ${device}, Status: ${response.status}`);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+
+        async function advancePump(pumpId) {
+            try {
+                const response = await fetch(`${apiBaseUrl}/toggle/${pumpId}`, { method: 'POST' });
+                if (!response.ok) {
+                    console.error(`Failed to advance pump: ${pumpId}, Status: ${response.status}`);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+    </script>
+</body>
+
+</html>
