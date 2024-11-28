@@ -136,6 +136,7 @@ class Main_Pump:
         self.internal_state = 'off'
         self.timer = None
         self.filter_cycle_timer = None
+        self.no_freeze_timer = None
         self.last_change_time = time.time()
         if self.name == 'pump1':
             next_time = schedule_task_at(3, 0, self.auto_filter_cycle)
@@ -184,11 +185,25 @@ class Main_Pump:
         self.last_change_time = time.time()
         logger.info(f"Main pump {self.name} state advanced")
 
+    def no_freeze_cycle(self) -> None:
+        if not self.high_speed_pin.value and not self.low_speed_pin.value:
+            self.low_speed_pin.value = True
+            self.internal_state = 'low'
+            self.reset_freeze_timer()
+            self.last_change_time = time.time()
+            logger.info(f"Main pump {self.name} no freeze cycle starting")
+
     def reset_timer(self) -> None:
         if self.timer:
             self.timer.cancel()
         self.timer = threading.Timer(20 * 60, self.auto_turn_off)
         self.timer.start()
+
+    def reset_freeze_timer(self) -> None:
+        if self.no_freeze_timer:
+            self.no_freeze_timer.cancel()
+        self.no_freeze_timer = threading.Timer(1 * 60, self.auto_turn_off)
+        self.no_freeze_timer.start()
 
     def auto_turn_off(self) -> None:
         if self.high_speed_pin.value or self.low_speed_pin.value:
@@ -436,6 +451,7 @@ class ComponentSystem:
         self.temp_cabinet = TemperatureSensor("cabinet", "")
         self.temp_control_box = TemperatureSensor("control_box", "")
         self.set_temperature = 99.0  # Default temperature in Fahrenheit
+        self.freeze_protection_temperature = 20
         self.mode = 'automatic'  # Default mode is automatic
         self.start_time = time.time()
         self.loop_time = time.time()
@@ -531,13 +547,11 @@ class ComponentSystem:
             self.sensor_read = False
 
     def freeze_protection(self) -> None:
-        if self.temp_ambient.f() < 25:
-            if not self.pump1.get_state():
-                if time.time() - self.pump1.last_change_time > 21600:
-                    self.pump1.set_state(True, 'low')
-            if not self.pump2.get_state():
-                if time.time() - self.pump2.last_change_time > 21600:
-                    self.pump2.set_state(True, 'low')
+        if self.temp_ambient.f() < self.freeze_protection_temperature:
+            if time.time() - self.pump1.last_change_time > (60 * 60 * 4):
+                self.pump1.no_freeze_cycle()
+            if time.time() - self.pump2.last_change_time > 60:
+                self.pump2.no_freeze_cycle()
 
     def heater_high_limit_check(self) -> None:
         if self.temp_heater1.f() > 150 or self.temp_heater2.f() > 150:
